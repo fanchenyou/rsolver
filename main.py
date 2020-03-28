@@ -69,8 +69,8 @@ parser.add_argument('--save', default='', type=str,
                     help='save parameters and logs in this folder')
 parser.add_argument('--ngpu', default=1, type=int,
                     help='number of GPUs to use for training')
-parser.add_argument('--gpu_id', default='0', type=str,
-                    help='id(s) for CUDA_VISIBLE_DEVICES')
+# parser.add_argument('--gpu_id', default='0', type=str,
+#                     help='id(s) for CUDA_VISIBLE_DEVICES')
 
 
 def create_dataset(opt, mode):
@@ -164,7 +164,6 @@ def main():
             else:
                 param_e1.append(value)
 
-
     def create_optimizer(opt, lr, lrg):
         print('creating optimizer with lr = ', lr, ' lrg = ', lrg)
         if opt.optim_method == 'SGD':
@@ -187,13 +186,12 @@ def main():
             return stiefel_optimizer.AdamG([dict_g, dict_e0, dict_e1])
 
         elif opt.optim_method == 'Cayley_SGD_ADP':
-            dict_g = {'params': param_g, 'lr': lrg, 'momentum': 0.9, 'stiefel': True, 'name':'1', 'beta':0.8}
+            dict_g = {'params': param_g, 'lr': lrg, 'momentum': 0.9, 'stiefel': True, 'name': '1', 'beta': 0.9}
             dict_e0 = {'params': param_e0, 'lr': lr, 'momentum': 0.9, 'stiefel': False, 'weight_decay': opt.bnDecay,
-                       'nesterov': True, 'name':'2', 'beta':None}
+                       'nesterov': True, 'name': '2', 'beta': None}
             dict_e1 = {'params': param_e1, 'lr': lr, 'momentum': 0.9, 'stiefel': False, 'weight_decay': opt.weightDecay,
-                       'nesterov': True, 'name':'3', 'beta':None}
+                       'nesterov': True, 'name': '3', 'beta': None}
             return stiefel_adaptive_optimizer.SGDG([dict_g, dict_e0, dict_e1])
-
 
     optimizer = create_optimizer(opt, opt.lr, opt.lrg)
 
@@ -220,7 +218,6 @@ def main():
     n_training_params = sum(p.numel() for p in params.values())
     n_parameters = sum(p.numel() for p in params.values()) + sum(p.numel() for p in stats.values())
     print('Total number of parameters:', n_parameters, '(%d)' % n_training_params)
-
 
     meter_loss = tnt.meter.AverageValueMeter()
     classacc = tnt.meter.ClassErrorMeter(accuracy=True)
