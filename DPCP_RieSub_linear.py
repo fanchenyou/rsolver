@@ -94,7 +94,7 @@ for i in range(1, Niter + 1):
             # grad = grad - 0.5*B*(gradB+ gradB');
             # %  grad = grad - 0.5*B*(grad'*B+ B'*grad);
 
-            grad = grad - 0.5 * B.mm(gradB + torch.t(gradB))
+            grad = grad - 0.5 * B.mm(gradB + torch.t(gradB))  ################# projection
 
             #
             # B_plus = B - mu*grad;

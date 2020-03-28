@@ -67,6 +67,12 @@ class SGDG(Optimizer):
         for group in self.param_groups:
             group.setdefault('nesterov', False)
 
+    @staticmethod
+    def proj(X, B):
+        B_proj =  B - 0.5 * X.mm(B.t().mm(X) + X.t().mm(B))
+        return B_proj
+
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
@@ -78,18 +84,18 @@ class SGDG(Optimizer):
         if closure is not None:
             loss = closure()
 
-        print('hahahahaha******************************')
+
         for group in self.param_groups:
-            print('=================')
-            print(group.keys())
-            print('--------------')
+            # print('=================')
+            # print(group.keys())
+            # print('--------------')
 
             momentum = group['momentum']
             stiefel = group['stiefel']
             gname = group['name']
             beta = group['beta']
 
-            print(len(group['params']))
+            #print(len(group['params']))
 
             if gname not in self.addon_vars:
                 self.addon_vars[gname] = [None] * len(group['params'])
@@ -110,83 +116,68 @@ class SGDG(Optimizer):
                     weight_decay = group['weight_decay']
                     dampening = group['dampening']
                     nesterov = group['nesterov']
-
-                    rand_num = random.randint(1, 101)
-                    if rand_num == 1:
-                        unity = qr_retraction(unity) # ?????????????????????????? Retraction ???????????????????
-
-                    g = p.grad.data.view(p.size()[0], -1)
-                    print(p.size(),g.size())
-
-
-
-
-
-
-                    ####################################################3
-                    #print(g.size())
-                    if self.addon_vars[gname][ix] is None:
-                        assert g.dim()==2
-                        I_t = torch.zeros(g.size(0))
-                        II_t = torch.zeros(g.size(0))
-                        r_t = torch.zeros(g.size(1))
-                        rr_t = torch.zeros(g.size(1))
-                        self.addon_vars[gname][ix] = [I_t, r_t, II_t, rr_t]
-                    else:
-                        I_t, r_t, II_t, rr_t = self.addon_vars[gname][ix]
-                        n = g.size(0)
-                        r = g.size(1)
-                        ggt = g.mm(g.t())
-                        gtg = g.t().mm(g)
-                        I_t2 = beta * I_t + (1-beta) * torch.diagonal(ggt) / r
-                        II_t2 = torch.max(II_t, I_t2)
-                        r_t2 = beta * r_t + (1-beta) * torch.diagonal(gtg) / n
-                        rr_t2 = torch.max(rr_t, r_t2)
-
-
-                    ################################################
-
-
-
-                    ## 1. retraction ?
-                    ## 2. check code
-                    ## 3. Projection operator?
-
-
-
-
-
-
-
-
-
-
-
-
-
                     lr = group['lr']
 
-                    param_state = self.state[p]
-                    if 'momentum_buffer' not in param_state:
-                        param_state['momentum_buffer'] = torch.zeros(g.t().size())
-                        if p.is_cuda:
-                            param_state['momentum_buffer'] = param_state['momentum_buffer'].cuda()
 
-                    V = param_state['momentum_buffer']
-                    V = momentum * V - g.t()
-                    MX = torch.mm(V, unity)
-                    XMX = torch.mm(unity, MX)
-                    XXMX = torch.mm(unity.t(), XMX)
-                    W_hat = MX - 0.5 * XXMX
-                    W = W_hat - W_hat.t()
-                    t = 0.5 * 2 / (matrix_norm_one(W) + episilon)
-                    alpha = min(t, lr)
+                    # get Euclidean gradient g
+                    g = p.grad.data.view(p.size()[0], -1)
 
-                    p_new = Cayley_loop(unity.t(), W, V, alpha)
-                    V_new = torch.mm(W, unity.t())  # n-by-p
-                    #                     check_identity(p_new.t())
+                    # get Riemann gradient by projection
+                    # see [LiXiao] eq(9,10)
+                    X = p.data.view(p.size()[0], -1)  # we use X to denote original parameter p
+                    B = g
+                    g_proj = self.proj(X, B)
+
+
+                    if self.addon_vars[gname][ix] is None:
+                        I_0 = torch.zeros(g_proj.size(0))
+                        II_0 = torch.zeros(g_proj.size(0))
+                        r_0 = torch.zeros(g_proj.size(1))
+                        rr_0 = torch.zeros(g_proj.size(1))
+                        self.addon_vars[gname][ix] = [I_0, r_0, II_0, rr_0]
+
+
+                    I_t_1, r_t_1, II_t_1, rr_t_1 = self.addon_vars[gname][ix]
+                    n = g.size(0)
+                    r = g.size(1)
+                    ggt = g_proj.mm(g_proj.t())
+                    gtg = g_proj.t().mm(g_proj)
+                    I_t = beta * I_t_1 + (1-beta) * torch.diagonal(ggt) / r
+                    II_t = torch.max(II_t_1, I_t)
+                    r_t = beta * r_t_1 + (1-beta) * torch.diagonal(gtg) / n
+                    rr_t = torch.max(rr_t_1, r_t)
+
+
+                    # Algorithm 1, Line 8
+                    II_t4 = torch.diag(II_t.pow(-0.25))
+                    rr_t4 = torch.diag(rr_t.pow(-0.25))
+                    DGD = II_t4.mm(g_proj.mm(rr_t4))
+                    DGD_proj = - lr * self.proj(X, DGD)   ##### Is this projecting DGD back to original parameter p?
+                    p_new = qr_retraction(DGD_proj)       ##### Is this retraction OK?
                     p.data.copy_(p_new.view(p.size()))
-                    V.copy_(V_new)
+
+
+                    # param_state = self.state[p]
+                    # if 'momentum_buffer' not in param_state:
+                    #     param_state['momentum_buffer'] = torch.zeros(g.t().size())
+                    #     if p.is_cuda:
+                    #         param_state['momentum_buffer'] = param_state['momentum_buffer'].cuda()
+                    #
+                    # V = param_state['momentum_buffer']
+                    # V = momentum * V - g.t()
+                    # MX = torch.mm(V, unity)
+                    # XMX = torch.mm(unity, MX)
+                    # XXMX = torch.mm(unity.t(), XMX)
+                    # W_hat = MX - 0.5 * XXMX
+                    # W = W_hat - W_hat.t()
+                    # t = 0.5 * 2 / (matrix_norm_one(W) + episilon)
+                    # alpha = min(t, lr)
+                    #
+                    # p_new = Cayley_loop(unity.t(), W, V, alpha)
+                    # V_new = torch.mm(W, unity.t())  # n-by-p
+                    # #                     check_identity(p_new.t())
+                    # p.data.copy_(p_new.view(p.size()))
+                    # V.copy_(V_new)
 
                 else:
                     d_p = p.grad.data
