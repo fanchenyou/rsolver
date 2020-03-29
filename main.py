@@ -21,6 +21,7 @@ import torch.optim
 import torch.utils.data
 import random
 import cvtransforms as T
+from torchvision import transforms
 import torchvision.datasets as datasets
 from torch.autograd import Variable
 import torch.nn.functional as F
@@ -29,6 +30,7 @@ from torchnet.engine import Engine
 from utils import cast, data_parallel
 from resnet import resnet
 from vgg import vgg
+from efnet import efnet
 
 import grassmann_optimizer
 import stiefel_optimizer
@@ -47,9 +49,9 @@ parser.add_argument('--groups', default=1, type=int)
 parser.add_argument('--nthread', default=4, type=int)
 
 # Training options
-parser.add_argument('--batchSize', default=128, type=int)
+parser.add_argument('--batchSize', default=64, type=int)
 parser.add_argument('--lr', default=0.1, type=float)
-parser.add_argument('--lrg', default=0.1, type=float)
+parser.add_argument('--lrg', default=0.01, type=float)
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--weightDecay', default=0.0005, type=float)
@@ -69,12 +71,17 @@ parser.add_argument('--save', default='', type=str,
                     help='save parameters and logs in this folder')
 parser.add_argument('--ngpu', default=1, type=int,
                     help='number of GPUs to use for training')
+
+
 # parser.add_argument('--gpu_id', default='0', type=str,
 #                     help='id(s) for CUDA_VISIBLE_DEVICES')
 
 
 def create_dataset(opt, mode):
-    if opt.dataset == 'CIFAR10':
+    if opt.dataset == 'MNIST':
+        mean = 0
+        std = 1.0
+    elif opt.dataset == 'CIFAR10':
         mean = [125.3, 123.0, 113.9]
         std = [63.0, 62.1, 66.7]
     elif opt.dataset == 'CIFAR100':
@@ -84,19 +91,22 @@ def create_dataset(opt, mode):
         mean = [0, 0, 0]
         std = [1.0, 1.0, 1.0]
 
-    convert = tnt.transform.compose([
-        lambda x: x.astype(np.float32),
-        T.Normalize(mean, std),
-        lambda x: x.transpose(2, 0, 1).astype(np.float32),
-        torch.from_numpy,
-    ])
+    if opt.dataset == 'MNIST':
+        assert 1==2
+    else:
+        convert = tnt.transform.compose([
+            lambda x: x.astype(np.float32),
+            T.Normalize(mean, std),
+            lambda x: x.transpose(2, 0, 1).astype(np.float32),
+            torch.from_numpy,
+        ])
 
-    train_transform = tnt.transform.compose([
-        T.RandomHorizontalFlip(),
-        T.Pad(opt.randomcrop_pad, cv2.BORDER_REFLECT),
-        T.RandomCrop(32),
-        convert,
-    ])
+        train_transform = tnt.transform.compose([
+            T.RandomHorizontalFlip(),
+            T.Pad(opt.randomcrop_pad, cv2.BORDER_REFLECT),
+            T.RandomCrop(32),
+            convert,
+        ])
 
     ds = getattr(datasets, opt.dataset)(opt.dataroot, train=mode, download=True)
     # smode = 'train' if mode else 'test'
@@ -130,15 +140,40 @@ def main():
         return ds.parallel(batch_size=opt.batchSize, shuffle=mode,
                            num_workers=opt.nthread, pin_memory=True)
 
-    train_loader = create_iterator(True)
-    test_loader = create_iterator(False)
 
     if opt.model == 'resnet':
         model = resnet
     elif opt.model == 'vgg':
         model = vgg
+    elif opt.model == 'efnet':
+        model = efnet
 
-    f, params, stats = model(opt.depth, opt.width, num_classes)
+    if opt.dataset == 'MNIST':
+        f, params, stats = model(opt.depth, opt.width, num_classes, num_channels=1)
+
+        kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
+        train_loader = torch.utils.data.DataLoader(
+            datasets.MNIST('./data', train=True, download=True,
+                           transform=transforms.Compose([
+                               transforms.Resize((32, 32)),
+                               transforms.ToTensor(),
+                               transforms.Normalize((0.5,), (0.5,))
+                           ])),
+            batch_size=opt.batchSize, shuffle=True, **kwargs)
+        test_loader = torch.utils.data.DataLoader(
+            datasets.MNIST('./data', train=False, transform=transforms.Compose([
+                transforms.Resize((32, 32)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ])),
+            batch_size=opt.batchSize, shuffle=False, **kwargs)
+
+
+    else:
+        f, params, stats = model(opt.depth, opt.width, num_classes, num_channels=3)
+
+        train_loader = create_iterator(True)
+        test_loader = create_iterator(False)
 
     key_g = []
     if opt.optim_method in ['SGDG', 'AdamG', 'Cayley_SGD', 'Cayley_Adam', 'Cayley_SGD_ADP']:

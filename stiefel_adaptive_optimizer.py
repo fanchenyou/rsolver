@@ -69,9 +69,10 @@ class SGDG(Optimizer):
 
     @staticmethod
     def proj(X, B):
-        B_proj =  B - 0.5 * X.mm(B.t().mm(X) + X.t().mm(B))
+        bx = B.t().mm(X)
+        sym = (bx + bx.t()) / 2
+        B_proj = B - X.mm(sym)
         return B_proj
-
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -84,7 +85,6 @@ class SGDG(Optimizer):
         if closure is not None:
             loss = closure()
 
-
         for group in self.param_groups:
             # print('=================')
             # print(group.keys())
@@ -95,7 +95,7 @@ class SGDG(Optimizer):
             gname = group['name']
             beta = group['beta']
 
-            #print(len(group['params']))
+            # print(len(group['params']))
 
             if gname not in self.addon_vars:
                 self.addon_vars[gname] = [None] * len(group['params'])
@@ -103,12 +103,10 @@ class SGDG(Optimizer):
             # for p in group['params']:
             #     print(p.size(),)
 
-
             for ix, p in enumerate(group['params']):
 
                 if p.grad is None:
                     continue
-
 
                 unity, _ = unit(p.data.view(p.size()[0], -1))
                 if stiefel and unity.size()[0] <= unity.size()[1]:
@@ -117,7 +115,6 @@ class SGDG(Optimizer):
                     dampening = group['dampening']
                     nesterov = group['nesterov']
                     lr = group['lr']
-
 
                     # get Euclidean gradient g
                     g = p.grad.data.view(p.size()[0], -1)
@@ -128,39 +125,35 @@ class SGDG(Optimizer):
                     B = g
                     g_proj = self.proj(X, B)
 
-
                     if self.addon_vars[gname][ix] is None:
                         I_0 = torch.zeros(g_proj.size(0))
                         II_0 = torch.zeros(g_proj.size(0))
                         r_0 = torch.zeros(g_proj.size(1))
                         rr_0 = torch.zeros(g_proj.size(1))
-                        if g.is_cuda():
+                        if g.is_cuda:
                             I_0 = I_0.cuda()
                             II_0 = II_0.cuda()
                             r_0 = r_0.cuda()
                             rr_0 = rr_0.cuda()
                         self.addon_vars[gname][ix] = [I_0, r_0, II_0, rr_0]
 
-
                     I_t_1, r_t_1, II_t_1, rr_t_1 = self.addon_vars[gname][ix]
                     n = g.size(0)
                     r = g.size(1)
                     ggt = g_proj.mm(g_proj.t())
                     gtg = g_proj.t().mm(g_proj)
-                    I_t = beta * I_t_1 + (1-beta) * torch.diagonal(ggt) / r
+                    I_t = beta * I_t_1 + (1 - beta) * torch.diagonal(ggt) / r
                     II_t = torch.max(II_t_1, I_t)
-                    r_t = beta * r_t_1 + (1-beta) * torch.diagonal(gtg) / n
+                    r_t = beta * r_t_1 + (1 - beta) * torch.diagonal(gtg) / n
                     rr_t = torch.max(rr_t_1, r_t)
-
 
                     # Algorithm 1, Line 8
                     II_t4 = torch.diag(II_t.pow(-0.25))
                     rr_t4 = torch.diag(rr_t.pow(-0.25))
                     DGD = II_t4.mm(g_proj.mm(rr_t4))
-                    DGD_proj = - lr * self.proj(X, DGD)   ##### Is this projecting DGD back to original parameter p?
-                    p_new = qr_retraction(DGD_proj)       ##### Is this retraction OK?
+                    DGD_proj = - lr * self.proj(X, DGD)  ##### Is this projecting DGD back to original parameter p?
+                    p_new = qr_retraction(DGD_proj)  ##### Is this retraction OK?
                     p.data.copy_(p_new.view(p.size()))
-
 
                     # param_state = self.state[p]
                     # if 'momentum_buffer' not in param_state:

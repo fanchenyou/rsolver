@@ -1,10 +1,10 @@
 import torch
 import torch.nn.functional as F
 from utils import conv_params, linear_params, bnparams, bnstats, \
-        flatten_params, flatten_stats
+    flatten_params, flatten_stats
 
 
-def resnet(depth, width, num_classes):
+def resnet(depth, width, num_classes, num_channels=3):
     assert (depth - 4) % 6 == 0, 'depth should be 6n+4'
     n = (depth - 4) // 6
     widths = torch.Tensor([16, 32, 64]).mul(width).int()
@@ -27,7 +27,7 @@ def resnet(depth, width, num_classes):
                 for i in range(count)}
 
     params = {
-        'conv0': conv_params(3,16,3),
+        'conv0': conv_params(num_channels, 16, 3),
         'group0': gen_group_params(16, widths[0], n),
         'group1': gen_group_params(widths[0], widths[1], n),
         'group2': gen_group_params(widths[1], widths[2], n),
@@ -65,7 +65,7 @@ def resnet(depth, width, num_classes):
 
     def group(o, params, stats, base, mode, stride):
         for i in range(n):
-            o = block(o, params, stats, '%s.block%d' % (base,i), mode, stride if i == 0 else 1)
+            o = block(o, params, stats, '%s.block%d' % (base, i), mode, stride if i == 0 else 1)
         return o
 
     def f(input, params, stats, mode):
@@ -74,11 +74,12 @@ def resnet(depth, width, num_classes):
         g0 = group(x, params, stats, 'group0', mode, 1)
         g1 = group(g0, params, stats, 'group1', mode, 2)
         g2 = group(g1, params, stats, 'group2', mode, 2)
+        #print(g2.size(),)
         o = activation(g2, params, stats, 'bn', mode)
         o = F.avg_pool2d(o, 8, 1, 0)
+        #print(o.size(), "=====")
         o = o.view(o.size(0), -1)
         o = F.linear(o, params['fc.weight'], params['fc.bias'])
         return o
 
     return f, flat_params, flat_stats
- 

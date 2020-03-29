@@ -1,29 +1,38 @@
-# Optimization on Stiefel Manifold via Cayley Transform
+# Optimization on Stiefel Manifold
 
 
 
 ## Requirements
 
-The script depends on opencv python bindings, easily installable via conda:
+Create python3 Pytorch environment
 
 ```
+conda create -n py37 python=3.7
+source activate py37
 conda install -c conda-forge opencv 
-```
-
-After that and after installing pytorch do:
-
-```
 pip install -r requirements.txt
 ```
 
 ## Train
-The commands below are examples.
+
+MNIST:
+```
+[Riemann-SGD-Adaptive] 
+CUDA_VISIBLE_DEVICES='0' python main.py --save ./models/CayleySGD_Adaptive --model resnet --depth 10 --width 1 --optim_method Cayley_SGD_ADP --lr 0.1 --lrg 0.01 --lr_decay_ratio 0.2 --dataset MNIST --epochs 20
+
+[Riemann-SGD-Adaptive] 
+CUDA_VISIBLE_DEVICES='1' python main.py --save ./models/CayleySGD --model resnet --depth 10 --width 1 --optim_method Cayley_SGD --lr 0.1 --lrg 0.01 --lr_decay_ratio 0.2 --dataset MNIST --epochs 20
+
+```
 
 CIFAR-10:
 ```
-[Cayley-SGD] 
-CUDA_VISIBLE_DEVICES='0' python main.py --save ./models/CayleySGD --model resnet --depth 16 --width 5 --optim_method Cayley_SGD --lr 0.8 --lrg 0.1 --lr_decay_ratio 0.2
 
-[Cayley-SGD-Adaptive] 
-CUDA_VISIBLE_DEVICES='1' python main.py --save ./models/CayleySGD_Adaptive --model resnet --depth 16 --width 5 --optim_method Cayley_SGD_ADP --lr 0.8 --lrg 0.1 --lr_decay_ratio 0.2 
+[Riemann-SGD-Adaptive] 
+CUDA_VISIBLE_DEVICES='0' python main.py --save ./models/CayleySGD_Adaptive --model resnet --depth 16 --width 5 --optim_method Cayley_SGD_ADP --lr 0.8 --lrg 0.1 --lr_decay_ratio 0.2 
+
+[Cayley-SGD] 
+CUDA_VISIBLE_DEVICES='1' python main.py --save ./models/CayleySGD --model resnet --depth 16 --width 5 --optim_method Cayley_SGD --lr 0.8 --lrg 0.1 --lr_decay_ratio 0.2
+
+
 ```
