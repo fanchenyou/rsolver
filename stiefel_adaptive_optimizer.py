@@ -134,6 +134,11 @@ class SGDG(Optimizer):
                         II_0 = torch.zeros(g_proj.size(0))
                         r_0 = torch.zeros(g_proj.size(1))
                         rr_0 = torch.zeros(g_proj.size(1))
+                        if g.is_cuda():
+                            I_0 = I_0.cuda()
+                            II_0 = II_0.cuda()
+                            r_0 = r_0.cuda()
+                            rr_0 = rr_0.cuda()
                         self.addon_vars[gname][ix] = [I_0, r_0, II_0, rr_0]
 
 
