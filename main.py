@@ -225,7 +225,7 @@ def main():
             return stiefel_optimizer.AdamG([dict_g, dict_e0, dict_e1])
 
         elif opt.optim_method == 'Cayley_SGD_ADP':
-            dict_g = {'params': param_g, 'lr': lrg, 'momentum': 0.9, 'stiefel': True, 'name': '1', 'beta': 0.9}
+            dict_g = {'params': param_g, 'lr': lrg, 'momentum': 0.9, 'stiefel': True, 'name': '1', 'beta': 0.8}
             dict_e0 = {'params': param_e0, 'lr': lr, 'momentum': 0.9, 'stiefel': False, 'weight_decay': opt.bnDecay,
                        'nesterov': True, 'name': '2', 'beta': None}
             dict_e1 = {'params': param_e1, 'lr': lr, 'momentum': 0.9, 'stiefel': False, 'weight_decay': opt.weightDecay,
