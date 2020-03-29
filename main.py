@@ -176,6 +176,10 @@ def main():
         test_loader = create_iterator(False)
 
     key_g = []
+
+    # if opt.optim_method=='Cayley_SGD_ADP':
+    #     epoch_step = list(range(2, opt.epochs))
+
     if opt.optim_method in ['SGDG', 'AdamG', 'Cayley_SGD', 'Cayley_Adam', 'Cayley_SGD_ADP']:
         param_g = []
         param_e0 = []
@@ -259,6 +263,8 @@ def main():
     timer_train = tnt.meter.TimeMeter('s')
     timer_test = tnt.meter.TimeMeter('s')
 
+    if not os.path.exists('./models'):
+        os.mkdir('./models')
     if not os.path.exists(opt.save):
         os.mkdir(opt.save)
 
@@ -274,7 +280,7 @@ def main():
                         optimizer=state['optimizer'].state_dict(),
                         epoch=t['epoch']),
                    open(os.path.join(opt.save, 'model.pt7'), 'wb'))
-        z = vars(opt).copy();
+        z = vars(opt).copy()
         z.update(t)
         logname = os.path.join(opt.save, 'log.txt')
         with open(logname, 'a') as f:
@@ -298,6 +304,7 @@ def main():
         state['iterator'] = tqdm(train_loader)
 
         epoch = state['epoch'] + 1
+
         if epoch in epoch_step:
             power = sum(epoch >= i for i in epoch_step)
             lr = opt.lr * pow(opt.lr_decay_ratio, power)

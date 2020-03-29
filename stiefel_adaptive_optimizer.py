@@ -59,6 +59,7 @@ class SGDG(Optimizer):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
 
         self.addon_vars = {}
+        self.step_cnt = 0
 
         super(SGDG, self).__init__(params, defaults)
 
@@ -85,6 +86,8 @@ class SGDG(Optimizer):
         if closure is not None:
             loss = closure()
 
+        self.step_cnt += 1
+
         for group in self.param_groups:
             # print('=================')
             # print(group.keys())
@@ -108,13 +111,14 @@ class SGDG(Optimizer):
                 if p.grad is None:
                     continue
 
-                unity, _ = unit(p.data.view(p.size()[0], -1))
-                if stiefel and unity.size()[0] <= unity.size()[1]:
+                # unity, _ = unit(p.data.view(p.size()[0], -1))
+                if stiefel: # and unity.size()[0] <= unity.size()[1]:
 
                     weight_decay = group['weight_decay']
                     dampening = group['dampening']
                     nesterov = group['nesterov']
-                    lr = group['lr']
+                    lr = group['lr'] / np.sqrt(self.step_cnt)
+
 
                     # get Euclidean gradient g
                     g = p.grad.data.view(p.size()[0], -1)
