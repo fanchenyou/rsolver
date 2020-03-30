@@ -87,6 +87,7 @@ class SGDG(Optimizer):
             loss = closure()
 
         self.step_cnt += 1
+        # print(self.step_cnt)
 
         for group in self.param_groups:
             # print('=================')
@@ -111,15 +112,15 @@ class SGDG(Optimizer):
                 if p.grad is None:
                     continue
 
+                weight_decay = group['weight_decay']
+                dampening = group['dampening']
+                nesterov = group['nesterov']
+
                 # unity, _ = unit(p.data.view(p.size()[0], -1))
                 if stiefel: # and unity.size()[0] <= unity.size()[1]:
 
-                    weight_decay = group['weight_decay']
-                    dampening = group['dampening']
-                    nesterov = group['nesterov']
                     lr = group['lr'] / np.sqrt(self.step_cnt)
-
-
+                    # print(lr)
                     # get Euclidean gradient g
                     g = p.grad.data.view(p.size()[0], -1)
 

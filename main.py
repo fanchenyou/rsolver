@@ -51,14 +51,14 @@ parser.add_argument('--nthread', default=4, type=int)
 # Training options
 parser.add_argument('--batchSize', default=64, type=int)
 parser.add_argument('--lr', default=0.1, type=float)
-parser.add_argument('--lrg', default=0.01, type=float)
+parser.add_argument('--lrg', default=0.1, type=float)
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--weightDecay', default=0.0005, type=float)
 parser.add_argument('--bnDecay', default=0, type=float)
 parser.add_argument('--omega', default=0.1, type=float)
 parser.add_argument('--grad_clip', default=0.1, type=float)
-parser.add_argument('--epoch_step', default='[60,120,160]', type=str,
+parser.add_argument('--epoch_step', default='[5,10,20]', type=str,
                     help='json list with epochs to drop lr on')
 parser.add_argument('--lr_decay_ratio', default=0.2, type=float)
 parser.add_argument('--resume', default='', type=str)
@@ -310,6 +310,8 @@ def main():
             lr = opt.lr * pow(opt.lr_decay_ratio, power)
             lrg = opt.lrg * pow(opt.lr_decay_ratio, power)
             state['optimizer'] = create_optimizer(opt, lr, lrg)
+
+        state['optimizer'].step_cnt = 0
 
     def on_end_epoch(state):
         train_loss = meter_loss.value()
